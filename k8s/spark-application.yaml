@@ -1,0 +1,82 @@
+apiVersion: "sparkoperator.k8s.io/v1beta2"
+kind: SparkApplication
+metadata:
+  name: spark-delta-s3-app
+  namespace: spark-apps
+spec:
+  type: Scala
+  mode: cluster
+  image: "your-jfrog-instance.jfrog.io/docker-local/spark-delta-s3:latest"
+  imagePullPolicy: Always
+  imagePullSecrets:
+    - jfrog-registry-secret
+  mainClass: com.opsramp.spark.S3ToDeltaLakeApp
+  mainApplicationFile: "local:///opt/spark-app/jobs/s3-to-delta-assembly.jar"
+  arguments:
+    - "s3a://your-source-bucket/input-data/"
+    - "s3a://your-destination-bucket/delta-table/"
+    - "parquet"
+  sparkVersion: "3.5.0"
+  restartPolicy:
+    type: OnFailure
+    onFailureRetries: 3
+    onFailureRetryInterval: 10
+    onSubmissionFailureRetries: 5
+    onSubmissionFailureRetryInterval: 20
+
+  # Spark configurations
+  sparkConf:
+    # Delta Lake configurations
+    "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension"
+    "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog"
+    "spark.delta.logStore.class": "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"
+
+    # S3 configurations
+    "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
+    "spark.hadoop.fs.s3a.endpoint": "s3.us-east-1.amazonaws.com"
+
+    # Performance tuning
+    "spark.sql.adaptive.enabled": "true"
+    "spark.sql.adaptive.coalescePartitions.enabled": "true"
+    "spark.serializer": "org.apache.spark.serializer.KryoSerializer"
+
+    # Event logging (optional - for Spark History Server)
+    "spark.eventLog.enabled": "true"
+    "spark.eventLog.dir": "s3a://your-bucket/spark-events/"
+
+  # Driver configuration
+  driver:
+    cores: 1
+    coreLimit: "1200m"
+    memory: "2g"
+    labels:
+      version: "3.5.0"
+    serviceAccount: spark-service-account
+    env:
+      - name: AWS_REGION
+        value: "us-east-1"
+    # Use IAM Role for Service Account (IRSA)
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::YOUR_ACCOUNT_ID:role/SparkS3AccessRole"
+
+  # Executor configuration
+  executor:
+    cores: 2
+    instances: 2
+    memory: "4g"
+    labels:
+      version: "3.5.0"
+    env:
+      - name: AWS_REGION
+        value: "us-east-1"
+    # Use IAM Role for Service Account (IRSA)
+    annotations:
+      eks.amazonaws.com/role-arn: "arn:aws:iam::YOUR_ACCOUNT_ID:role/SparkS3AccessRole"
+
+  # Dynamic allocation (optional)
+  dynamicAllocation:
+    enabled: true
+    initialExecutors: 2
+    minExecutors: 1
+    maxExecutors: 10
