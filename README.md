@@ -8,7 +8,9 @@ A modular Scala-based Apache Spark application repository that runs Spark jobs o
 - **Kubernetes**: AWS EKS, GKE, GLCP Kubernetes, or any Kubernetes cluster
 - **Storage**: AWS S3, Google Cloud Storage (GCS)
 
-📖 **For detailed GLCP deployment instructions, see [docs/GLCP_DEPLOYMENT.md](docs/GLCP_DEPLOYMENT.md)**
+📖 **Documentation:**
+- [GLCP Quick Start Guide](docs/GLCP_QUICKSTART.md) - Fast track to push images to GLCP
+- [GLCP Deployment Guide](docs/GLCP_DEPLOYMENT.md) - Complete deployment instructions for GLCP
 
 ## Project Structure
 
