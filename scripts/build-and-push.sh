@@ -75,8 +75,16 @@ if [ "${REGISTRY_TYPE}" = "glcp" ]; then
     if [ -f "${GLCP_CLIENT_CREDENTIALS}" ]; then
         echo "Using GLCP client credentials file for authentication..."
         # Extract client ID and secret from credentials file
-        GLCP_CLIENT_ID=$(cat ${GLCP_CLIENT_CREDENTIALS} | grep -o '"client_id":"[^"]*' | cut -d'"' -f4)
-        GLCP_CLIENT_SECRET=$(cat ${GLCP_CLIENT_CREDENTIALS} | grep -o '"client_secret":"[^"]*' | cut -d'"' -f4)
+        # Check if jq is available for robust JSON parsing
+        if command -v jq &> /dev/null; then
+            GLCP_CLIENT_ID=$(jq -r '.client_id' ${GLCP_CLIENT_CREDENTIALS})
+            GLCP_CLIENT_SECRET=$(jq -r '.client_secret' ${GLCP_CLIENT_CREDENTIALS})
+        else
+            # Fallback to grep if jq is not available
+            echo "Warning: jq not found, using grep for JSON parsing (less robust)"
+            GLCP_CLIENT_ID=$(cat ${GLCP_CLIENT_CREDENTIALS} | grep -o '"client_id":"[^"]*' | cut -d'"' -f4)
+            GLCP_CLIENT_SECRET=$(cat ${GLCP_CLIENT_CREDENTIALS} | grep -o '"client_secret":"[^"]*' | cut -d'"' -f4)
+        fi
         
         if [ -z "${GLCP_CLIENT_ID}" ] || [ -z "${GLCP_CLIENT_SECRET}" ]; then
             echo "ERROR: Could not extract client_id or client_secret from ${GLCP_CLIENT_CREDENTIALS}"
@@ -94,7 +102,8 @@ if [ "${REGISTRY_TYPE}" = "glcp" ]; then
     fi
     
     # Authenticate with GLCP and configure Docker
-    echo "${GLCP_CLIENT_SECRET}" | docker login ${GLCP_REGISTRY} -u ${GLCP_CLIENT_ID} --password-stdin
+    # Use printf to safely handle special characters in the secret
+    printf '%s\n' "${GLCP_CLIENT_SECRET}" | docker login ${GLCP_REGISTRY} -u ${GLCP_CLIENT_ID} --password-stdin
 else
     echo "Authenticating with GCP Artifact Registry..."
     # Check if service account key file exists for CI/CD authentication

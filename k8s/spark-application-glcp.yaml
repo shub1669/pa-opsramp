@@ -7,7 +7,8 @@ spec:
   type: Scala
   mode: cluster
   # GLCP Container Registry image path
-  image: "containers.us1.greenlakecloud.hpe.com/YOUR_ORG_ID/default/pa-spark:latest"
+  # Important: Use specific version tags instead of 'latest' for production
+  image: "containers.us1.greenlakecloud.hpe.com/YOUR_ORG_ID/default/pa-spark:1.0.0"
   imagePullPolicy: Always
   imagePullSecrets:
     - glcp-registry-secret
