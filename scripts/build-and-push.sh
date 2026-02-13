@@ -82,8 +82,8 @@ if [ "${REGISTRY_TYPE}" = "glcp" ]; then
         else
             # Fallback to grep if jq is not available
             echo "Warning: jq not found, using grep for JSON parsing (less robust)"
-            GLCP_CLIENT_ID=$(cat ${GLCP_CLIENT_CREDENTIALS} | grep -o '"client_id":"[^"]*' | cut -d'"' -f4)
-            GLCP_CLIENT_SECRET=$(cat ${GLCP_CLIENT_CREDENTIALS} | grep -o '"client_secret":"[^"]*' | cut -d'"' -f4)
+            GLCP_CLIENT_ID=$(grep -o '"client_id":"[^"]*' < ${GLCP_CLIENT_CREDENTIALS} | cut -d'"' -f4)
+            GLCP_CLIENT_SECRET=$(grep -o '"client_secret":"[^"]*' < ${GLCP_CLIENT_CREDENTIALS} | cut -d'"' -f4)
         fi
         
         if [ -z "${GLCP_CLIENT_ID}" ] || [ -z "${GLCP_CLIENT_SECRET}" ]; then
