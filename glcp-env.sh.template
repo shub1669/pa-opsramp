@@ -1,0 +1,46 @@
+#!/bin/bash
+# ==============================================================================
+# GLCP Environment Configuration Template
+# ==============================================================================
+# Copy this file to glcp-env.sh and update with your actual values
+# DO NOT commit glcp-env.sh to git (it's in .gitignore)
+
+# Registry Type (do not change this for GLCP)
+export REGISTRY_TYPE="glcp"
+
+# GLCP Region - choose one:
+# - us1 (United States)
+# - eu1 (Europe)
+# - ap1 (Asia Pacific)
+export GLCP_REGION="us1"
+
+# GLCP Organization ID
+# Get this from GLCP console -> Organization settings
+export GLCP_ORG="your-organization-id-here"
+
+# GLCP Space (usually 'default')
+export GLCP_SPACE="default"
+
+# GLCP API Client Credentials
+# Create these at: https://common.cloud.hpe.com/ -> Manage -> API Clients
+export GLCP_CLIENT_ID="your-client-id-here"
+export GLCP_CLIENT_SECRET="your-client-secret-here"
+
+# Image Configuration
+export IMAGE_NAME="pa-spark"
+export IMAGE_TAG="1.0.0"
+
+# ==============================================================================
+# Display Configuration
+# ==============================================================================
+echo "========================================"
+echo "GLCP Environment Configured"
+echo "========================================"
+echo "Registry Type: ${REGISTRY_TYPE}"
+echo "Region: ${GLCP_REGION}"
+echo "Registry URL: containers.${GLCP_REGION}.greenlakecloud.hpe.com"
+echo "Organization: ${GLCP_ORG}"
+echo "Space: ${GLCP_SPACE}"
+echo "Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+echo "Full Image Path: containers.${GLCP_REGION}.greenlakecloud.hpe.com/${GLCP_ORG}/${GLCP_SPACE}/${IMAGE_NAME}:${IMAGE_TAG}"
+echo "========================================"

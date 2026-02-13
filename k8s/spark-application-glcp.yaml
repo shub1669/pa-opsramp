@@ -1,23 +1,23 @@
 apiVersion: "sparkoperator.k8s.io/v1beta2"
 kind: SparkApplication
 metadata:
-  name: spark-delta-s3-app
+  name: spark-delta-glcp-app
   namespace: spark-apps
 spec:
   type: Scala
   mode: cluster
-  # GCP Artifact Registry or AWS ECR image path
-  # GCP example: us-central1-docker.pkg.dev/opsramp-registry/pa-charts/pa-spark:latest
-  # AWS example: 123456789012.dkr.ecr.us-east-1.amazonaws.com/pa-spark:latest
-  image: "your-registry/your-repo/spark-delta-s3:latest"
+  # GLCP Container Registry image path
+  # Important: Use specific version tags instead of 'latest' for production
+  image: "containers.us1.greenlakecloud.hpe.com/your-org-id/default/pa-spark:1.0.0"
   imagePullPolicy: Always
   imagePullSecrets:
-    - registry-secret  # Update based on your registry (gcp-registry-secret, aws-registry-secret, etc.)
+    - glcp-registry-secret
   mainClass: com.opsramp.spark.S3ToDeltaLakeApp
   mainApplicationFile: "local:///opt/spark-app/jobs/s3-to-delta-assembly.jar"
   arguments:
-    - "s3a://your-source-bucket/input-data/"
-    - "s3a://your-destination-bucket/delta-table/"
+    # Update with your GCS or S3 paths
+    - "gs://your-source-bucket/input-data/"
+    - "gs://your-destination-bucket/delta-table/"
     - "parquet"
   sparkVersion: "3.5.0"
   restartPolicy:
@@ -32,12 +32,14 @@ spec:
     # Delta Lake configurations
     "spark.sql.extensions": "io.delta.sql.DeltaSparkSessionExtension"
     "spark.sql.catalog.spark_catalog": "org.apache.spark.sql.delta.catalog.DeltaCatalog"
-    "spark.delta.logStore.class": "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore"
-
-    # S3 configurations
-    "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
-    "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
-    "spark.hadoop.fs.s3a.endpoint": "s3.us-east-1.amazonaws.com"
+    
+    # GCS configurations (if using Google Cloud Storage)
+    "spark.hadoop.fs.gs.impl": "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"
+    "spark.hadoop.fs.AbstractFileSystem.gs.impl": "com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS"
+    
+    # Or S3 configurations (if using AWS S3)
+    # "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem"
+    # "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.WebIdentityTokenCredentialsProvider"
 
     # Performance tuning
     "spark.sql.adaptive.enabled": "true"
@@ -46,7 +48,7 @@ spec:
 
     # Event logging (optional - for Spark History Server)
     "spark.eventLog.enabled": "true"
-    "spark.eventLog.dir": "s3a://your-bucket/spark-events/"
+    "spark.eventLog.dir": "gs://your-bucket/spark-events/"
 
   # Driver configuration
   driver:
@@ -57,11 +59,8 @@ spec:
       version: "3.5.0"
     serviceAccount: spark-service-account
     env:
-      - name: AWS_REGION
-        value: "us-east-1"
-    # Use IAM Role for Service Account (IRSA)
-    annotations:
-      eks.amazonaws.com/role-arn: "arn:aws:iam::YOUR_ACCOUNT_ID:role/SparkS3AccessRole"
+      - name: CLOUD_PROVIDER
+        value: "glcp"
 
   # Executor configuration
   executor:
@@ -71,11 +70,8 @@ spec:
     labels:
       version: "3.5.0"
     env:
-      - name: AWS_REGION
-        value: "us-east-1"
-    # Use IAM Role for Service Account (IRSA)
-    annotations:
-      eks.amazonaws.com/role-arn: "arn:aws:iam::YOUR_ACCOUNT_ID:role/SparkS3AccessRole"
+      - name: CLOUD_PROVIDER
+        value: "glcp"
 
   # Dynamic allocation (optional)
   dynamicAllocation:

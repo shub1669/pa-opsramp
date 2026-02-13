@@ -1,29 +1,39 @@
 # PA OpsRamp - Spark Jobs
 
-A modular Scala-based Apache Spark application repository that runs Spark jobs on AWS EKS with Docker images hosted on JFrog Artifactory.
+A modular Scala-based Apache Spark application repository that runs Spark jobs on Kubernetes clusters with Docker images hosted on cloud container registries (GCP Artifact Registry or HPE GreenLake Cloud Platform).
+
+## Supported Platforms
+
+- **Container Registries**: GCP Artifact Registry, GLCP (GreenLake Cloud Platform) Container Registry
+- **Kubernetes**: AWS EKS, GKE, GLCP Kubernetes, or any Kubernetes cluster
+- **Storage**: AWS S3, Google Cloud Storage (GCS)
+
+📖 **Documentation:**
+- [GLCP Quick Start Guide](docs/GLCP_QUICKSTART.md) - Fast track to push images to GLCP
+- [GLCP Deployment Guide](docs/GLCP_DEPLOYMENT.md) - Complete deployment instructions for GLCP
 
 ## Project Structure
 
 ```
 pa-opsramp/
-├── build.sbt                           # Root SBT build configuration (multi-module)
-├── Dockerfile                          # Docker image definition
+├── build.sbt                              # Root SBT build configuration (multi-module)
+├── Dockerfile                             # Docker image definition
 ├── project/
-│   ├── build.properties               # SBT version
-│   └── plugins.sbt                    # SBT plugins (assembly)
-├── jobs/                              # Modular Spark jobs directory
-│   └── s3-to-delta/                   # S3 to Delta Lake job module
+│   ├── build.properties                  # SBT version
+│   └── plugins.sbt                       # SBT plugins (assembly)
+├── jobs/                                 # Modular Spark jobs directory
+│   └── s3-to-delta/                      # S3 to Delta Lake job module
 │       └── src/
 │           └── main/
 │               └── scala/
 │                   └── com/opsramp/spark/
 │                       └── S3ToDeltaLakeApp.scala
 ├── k8s/
-│   └── spark-application.yaml         # Kubernetes SparkApplication manifest
+│   ├── spark-application.yaml            # Kubernetes SparkApplication manifest (GCP/AWS)
+│   └── spark-application-glcp.yaml       # Kubernetes SparkApplication manifest (GLCP)
 ├── scripts/
-│   ├── build-and-push.sh             # Build and push to JFrog
-│   ├── setup-aws-cluster.sh          # Setup AWS EKS cluster
-│   └── deploy-spark-app.sh           # Deploy Spark app to EKS
+│   ├── build-and-push.sh                 # Build and push to container registry
+│   └── deploy-spark-app.sh               # Deploy Spark app to Kubernetes
 └── README.md
 ```
 
@@ -49,57 +59,138 @@ sbt clean assembly
 sbt s3ToDeltaJob/assembly
 ```
 
-### 2. Build and Push Docker Image to JFrog
+### 2. Build and Push Docker Image
+
+#### Option A: Push to GCP Artifact Registry
 
 ```bash
 # Set environment variables
-export JFROG_REGISTRY="your-jfrog-instance.jfrog.io"
-export JFROG_REPO="docker-local"
-export JFROG_USER="your-username"
-export JFROG_PASSWORD="your-password"
+export GCP_REGION="us-central1"
+export GCP_PROJECT="opsramp-registry"
+export GCP_REPO="pa-charts"
 export IMAGE_TAG="1.0.0"
+export REGISTRY_TYPE="gcp"
+
+# Optional: For CI/CD with service account
+export SA_KEY_FILE="sa-key.json"
 
 # Run build and push script
 chmod +x scripts/build-and-push.sh
 ./scripts/build-and-push.sh
 ```
 
-### 3. Setup AWS EKS Cluster
+#### Option B: Push to GLCP (GreenLake Cloud Platform) Container Registry
+
+```bash
+# Set environment variables
+export REGISTRY_TYPE="glcp"
+export GLCP_REGION="us1"  # Options: us1, eu1, ap1
+export GLCP_ORG="your-glcp-org-id"
+export GLCP_SPACE="default"
+export IMAGE_TAG="1.0.0"
+
+# Authentication credentials
+export GLCP_CLIENT_ID="your-glcp-client-id"
+export GLCP_CLIENT_SECRET="your-glcp-client-secret"
+
+# Optional: For CI/CD with credentials file
+export GLCP_CLIENT_CREDENTIALS="glcp-credentials.json"
+
+# Run build and push script
+chmod +x scripts/build-and-push.sh
+./scripts/build-and-push.sh
+```
+
+**Note:** To obtain GLCP credentials:
+1. Log in to HPE GreenLake Cloud Platform
+2. Navigate to your organization settings
+3. Create API client credentials (Client ID and Client Secret)
+4. Save the credentials securely
+
+### 3. Setup Kubernetes Cluster
+
+#### Option A: AWS EKS Cluster (for GCP registry)
 
 ```bash
 # Set environment variables
 export CLUSTER_NAME="spark-delta-cluster"
 export AWS_REGION="us-east-1"
-export JFROG_REGISTRY="your-jfrog-instance.jfrog.io"
-export JFROG_USER="your-username"
-export JFROG_PASSWORD="your-password"
+export GCP_REGION="us-central1"
+export GCP_PROJECT="opsramp-registry"
 
-# Run setup script
-chmod +x scripts/setup-aws-cluster.sh
-./scripts/setup-aws-cluster.sh
+# For GCP registry access from AWS
+export SA_KEY_FILE="sa-key.json"
+
+# Run setup script (if you have one for AWS EKS)
+# chmod +x scripts/setup-aws-cluster.sh
+# ./scripts/setup-aws-cluster.sh
 ```
+
+#### Option B: GLCP Kubernetes Cluster
+
+For GLCP, you'll use the managed Kubernetes service within GreenLake:
+
+1. **Create or access a Kubernetes cluster in GLCP**:
+   - Log in to HPE GreenLake Cloud Platform
+   - Navigate to the Kubernetes service
+   - Create a new cluster or select an existing one
+   - Download the kubeconfig file
+
+2. **Configure kubectl to use GLCP cluster**:
+   ```bash
+   export KUBECONFIG=/path/to/glcp-kubeconfig.yaml
+   kubectl config current-context
+   ```
+
+3. **Create image pull secret for GLCP registry**:
+   ```bash
+   kubectl create namespace spark-apps
+   
+   kubectl create secret docker-registry glcp-registry-secret \
+     --docker-server=containers.us1.greenlakecloud.hpe.com \
+     --docker-username=${GLCP_CLIENT_ID} \
+     --docker-password=${GLCP_CLIENT_SECRET} \
+     --namespace=spark-apps
+   ```
+
+4. **Create service account**:
+   ```bash
+   kubectl create serviceaccount spark-service-account -n spark-apps
+   ```
 
 ### 4. Configure and Deploy Spark Application
 
 Before deploying, update `k8s/spark-application.yaml`:
 
-1. Update the image path:
+1. **For GCP Artifact Registry**, update the image path:
    ```yaml
-   image: "your-jfrog-instance.jfrog.io/docker-local/spark-delta-s3:1.0.0"
+   image: "us-central1-docker.pkg.dev/opsramp-registry/pa-charts/pa-spark:1.0.0"
+   imagePullSecrets:
+     - name: gcp-registry-secret
    ```
 
-2. Update S3 paths:
+2. **For GLCP Container Registry**, update the image path:
+   ```yaml
+   image: "containers.us1.greenlakecloud.hpe.com/your-org-id/default/pa-spark:1.0.0"
+   imagePullSecrets:
+     - name: glcp-registry-secret
+   ```
+
+3. Update S3 or GCS paths based on your storage:
    ```yaml
    arguments:
+     # For AWS S3
      - "s3a://your-source-bucket/input-data/"
      - "s3a://your-destination-bucket/delta-table/"
      - "parquet"
+     
+     # Or for GCS
+     - "gs://your-source-bucket/input-data/"
+     - "gs://your-destination-bucket/delta-table/"
+     - "parquet"
    ```
 
-3. Update AWS account ID in annotations:
-   ```yaml
-   eks.amazonaws.com/role-arn: "arn:aws:iam::YOUR_ACCOUNT_ID:role/SparkS3AccessRole"
-   ```
+4. Update IAM role or service account annotations as needed
 
 Deploy the application:
 
@@ -170,6 +261,57 @@ Reads data from S3 and writes to Delta Lake on S3.
 - **Parquet**: Native Spark parquet reader
 - **Avro**: Requires avro format
 
+## Container Registry Setup
+
+### GCP Artifact Registry
+
+If you're using GCP Artifact Registry, no special setup is needed beyond what's in the Quick Start section.
+
+### GLCP (GreenLake Cloud Platform) Container Registry
+
+HPE GreenLake Cloud Platform provides a managed container registry for storing Docker images.
+
+#### Prerequisites for GLCP:
+1. Active HPE GreenLake Cloud Platform account
+2. Access to an organization in GLCP
+3. API client credentials (Client ID and Secret)
+
+#### Setting up GLCP API Credentials:
+
+1. **Create API Client Credentials**:
+   - Log in to [HPE GreenLake Cloud Platform](https://common.cloud.hpe.com/)
+   - Navigate to **Manage** → **API Clients**
+   - Click **Create API Client**
+   - Provide a name and description
+   - Save the **Client ID** and **Client Secret** (you won't be able to see the secret again)
+
+2. **Assign Appropriate Permissions**:
+   - Ensure the API client has permissions to push/pull container images
+   - Typical role: Container Registry Administrator or Contributor
+
+3. **Store Credentials Securely**:
+   ```bash
+   # Set as environment variables
+   export GLCP_CLIENT_ID="your-client-id-here"
+   export GLCP_CLIENT_SECRET="your-client-secret-here"
+   
+   # Or create a credentials file (JSON format)
+   cat > glcp-credentials.json << EOF
+   {
+     "client_id": "your-client-id-here",
+     "client_secret": "your-client-secret-here"
+   }
+   EOF
+   chmod 600 glcp-credentials.json
+   ```
+
+#### GLCP Registry Regions:
+- `us1` - United States
+- `eu1` - Europe
+- `ap1` - Asia Pacific
+
+The registry URL format is: `containers.{region}.greenlakecloud.hpe.com`
+
 ## Monitoring
 
 ### Check Application Status
@@ -233,15 +375,26 @@ executor:
 
 ### Common Issues
 
-1. **Image Pull Error**
-   - Verify JFrog registry secret is created
+1. **Image Pull Error (GCP)**
+   - Verify GCP service account has correct permissions
    - Check image path in spark-application.yaml
+   - Ensure registry secret is created correctly
 
-2. **S3 Access Denied**
+2. **Image Pull Error (GLCP)**
+   - Verify GLCP client credentials are valid
+   - Check that the GLCP organization and space are correct
+   - Ensure registry secret is created with correct server URL
+   - Verify the image was pushed successfully to GLCP registry
+
+3. **S3 Access Denied**
    - Verify IAM role has correct S3 permissions
    - Check IRSA annotation on service account
 
-3. **Out of Memory**
+4. **GCS Access Denied (for GCP)**
+   - Verify service account has Storage Object Viewer/Creator roles
+   - Check that GCS connector JARs are included in Docker image
+
+5. **Out of Memory**
    - Increase executor memory
    - Enable dynamic allocation
 
